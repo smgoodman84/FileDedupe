@@ -23,6 +23,13 @@ namespace FileDedupe
                 Console.WriteLine($"{file.FullName} {file.Hash}");
             }
 
+            Console.WriteLine("Directories With Duplicate Files");
+            
+            foreach (var file in database.GetDirectoriesWithDuplicateFiles())
+            {
+                Console.WriteLine($"{file.Directory1} {file.Directory2}");
+            }
+
             Console.ReadKey();
         }
     }

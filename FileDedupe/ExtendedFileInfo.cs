@@ -1,10 +1,4 @@
-﻿using System;
-using System.IO;
-
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.IO;
 
 namespace FileDedupe
 {
@@ -21,5 +15,6 @@ namespace FileDedupe
 
         public string FullName => _fileInfo.FullName;
         public string Hash => _hash;
+        public string DirectoryName => _fileInfo.DirectoryName;
     }
 }

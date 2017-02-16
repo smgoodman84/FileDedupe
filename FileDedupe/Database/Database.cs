@@ -13,7 +13,7 @@ namespace FileDedupe.Database
             _filename = Path.GetTempFileName();
             SQLiteConnection.CreateFile(_filename);
 
-            ExecuteSql(@"CREATE TABLE FileDetails(Hash TEXT, Filename TEXT);");
+            ExecuteSql(@"CREATE TABLE FileDetails(Hash TEXT, Filename TEXT, Directory TEXT);");
         }
 
         private SQLiteConnection Connect()
@@ -35,7 +35,7 @@ namespace FileDedupe.Database
 
         public void SaveFileInfo(ExtendedFileInfo fileInfo)
         {
-            ExecuteSql($"INSERT INTO FileDetails(Hash, Filename) VALUES ('{fileInfo.Hash}', '{fileInfo.FullName}')");
+            ExecuteSql($"INSERT INTO FileDetails(Hash, Filename, Directory) VALUES ('{fileInfo.Hash}', '{fileInfo.FullName}', '{fileInfo.DirectoryName}')");
         }
 
         public IEnumerable<ExtendedFileInfo> ReadAllFileInfo()
@@ -49,6 +49,27 @@ namespace FileDedupe.Database
                 while (reader.Read())
                 {
                     yield return new ExtendedFileInfo(new FileInfo(reader["Filename"].ToString()), reader["Hash"].ToString());
+                }
+            }
+        }
+
+        public IEnumerable<DuplicateDirectoryInfo> GetDirectoriesWithDuplicateFiles()
+        {
+            using (var connection = Connect())
+            {
+                var sql = @"SELECT DISTINCT fd1.Directory AS Directory1, fd2.Directory AS Directory2
+                            FROM FileDetails fd1
+                            INNER JOIN FileDetails fd2
+                                ON fd2.Hash = fd1.Hash
+                                AND fd2.Directory > fd1.Directory
+                            ORDER BY fd1.Directory";
+
+                var command = new SQLiteCommand(sql, connection);
+                var reader = command.ExecuteReader();
+
+                while (reader.Read())
+                {
+                    yield return new DuplicateDirectoryInfo(reader["Directory1"].ToString(), reader["Directory2"].ToString());
                 }
             }
         }

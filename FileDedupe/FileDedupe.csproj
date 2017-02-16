@@ -51,6 +51,7 @@
   <ItemGroup>
     <Compile Include="Database\Database.cs" />
     <Compile Include="DirectoryReader.cs" />
+    <Compile Include="DuplicateDirectoryInfo.cs" />
     <Compile Include="ExtendedFileInfo.cs" />
     <Compile Include="HashCalculator.cs" />
     <Compile Include="Program.cs" />
