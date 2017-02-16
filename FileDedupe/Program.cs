@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 
 namespace FileDedupe
 {
@@ -8,9 +9,12 @@ namespace FileDedupe
         {
             var directoryReader = new DirectoryReader();
 
-            foreach (var file in directoryReader.Read(@"C:\Data\GitHub\FileDedupe\TestData"))
+            var files = directoryReader.Read(@"C:\Data\GitHub\FileDedupe\TestData")
+                .Select(f => HashCalculator.CalculateHash(f));
+
+            foreach (var file in files)
             {
-                Console.WriteLine(file.FullName);
+                Console.WriteLine($"{file.FullName} {file.Hash}");
             }
 
             Console.ReadKey();

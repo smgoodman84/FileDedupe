@@ -44,6 +44,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="DirectoryReader.cs" />
+    <Compile Include="ExtendedFileInfo.cs" />
+    <Compile Include="HashCalculator.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
