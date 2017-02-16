@@ -8,11 +8,17 @@ namespace FileDedupe
         static void Main(string[] args)
         {
             var directoryReader = new DirectoryReader();
+            var database = new Database.Database();
 
             var files = directoryReader.Read(@"C:\Data\GitHub\FileDedupe\TestData")
                 .Select(f => HashCalculator.CalculateHash(f));
 
             foreach (var file in files)
+            {
+                database.SaveFileInfo(file);
+            }
+
+            foreach (var file in database.ReadAllFileInfo())
             {
                 Console.WriteLine($"{file.FullName} {file.Hash}");
             }
