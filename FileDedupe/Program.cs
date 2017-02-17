@@ -25,9 +25,9 @@ namespace FileDedupe
 
             Console.WriteLine("Directories With Duplicate Files");
             
-            foreach (var file in database.GetDirectoriesWithDuplicateFiles())
+            foreach (var file in database.GetDuplicateDirectoryInfo())
             {
-                Console.WriteLine($"{file.Directory1} {file.Directory2}");
+                Console.WriteLine($"{file.Directory1} {file.Directory2} {file.GetMatchType()}");
             }
 
             Console.ReadKey();
