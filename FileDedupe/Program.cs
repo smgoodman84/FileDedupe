@@ -8,20 +8,22 @@ namespace FileDedupe
         static void Main(string[] args)
         {
             var directoryReader = new DirectoryReader();
-            var database = new Database.Database();
+            var database = new Database.Database("FileDedupe.sqlite");
 
             var files = directoryReader.Read(@"C:\Data\GitHub\FileDedupe\TestData")
-                .Select(f => HashCalculator.CalculateHash(f));
+                .Where(f => !database.IsFileHashSaved(f))
+                .Select(HashCalculator.CalculateHash);
 
             foreach (var file in files)
             {
+                Console.WriteLine($"Saving {file.FullName}");
                 database.SaveFileInfo(file);
             }
 
-            foreach (var file in database.ReadAllFileInfo())
-            {
-                Console.WriteLine($"{file.FullName} {file.Hash}");
-            }
+            //foreach (var file in database.ReadAllFileInfo())
+            //{
+            //    Console.WriteLine($"{file.FullName} {file.Hash}");
+            //}
 
             Console.WriteLine("Directories With Duplicate Files");
             

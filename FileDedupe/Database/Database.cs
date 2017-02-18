@@ -9,29 +9,54 @@ namespace FileDedupe.Database
     internal class Database : IDisposable
     {
         private readonly string _filename;
+        private readonly bool _usingTempFile;
+        private SQLiteConnection _connection;
         public Database()
         {
             _filename = Path.GetTempFileName();
-            SQLiteConnection.CreateFile(_filename);
+            _usingTempFile = true;
 
-            ExecuteSql(@"CREATE TABLE FileDetails(Hash TEXT, Filename TEXT, Directory TEXT);");
+            Init();
         }
 
-        private SQLiteConnection Connect()
+        public Database(string filename)
         {
-            var connection = new SQLiteConnection($"Data Source={_filename};Version=3;");
-            connection.Open();
+            _filename = filename;
+            _usingTempFile = false;
 
-            return connection;
+            if (!File.Exists(_filename))
+            {
+                Init();
+            }
+            else
+            {
+                Connect();
+            }
+        }
+
+        private void Init()
+        {
+            SQLiteConnection.CreateFile(_filename);
+
+            Connect();
+
+            ExecuteSql(@"CREATE TABLE FileDetails(Hash TEXT, Filename TEXT, Directory TEXT);");
+
+            ExecuteSql(@"CREATE INDEX IX_FileDetails_Hash ON FileDetails(Hash);");
+            ExecuteSql(@"CREATE INDEX IX_FileDetails_Filename ON FileDetails(Filename);");
+            ExecuteSql(@"CREATE INDEX IX_FileDetails_Directory ON FileDetails(Directory);");
+        }
+
+        private void Connect()
+        {
+            _connection = new SQLiteConnection($"Data Source={_filename};Version=3;");
+            _connection.Open();
         }
 
         private void ExecuteSql(string sql)
         {
-            using (var connection = Connect())
-            {
-                SQLiteCommand command = new SQLiteCommand(sql, connection);
-                command.ExecuteNonQuery();
-            }
+            SQLiteCommand command = new SQLiteCommand(sql, _connection);
+            command.ExecuteNonQuery();
         }
 
         private string Escape(string input)
@@ -46,12 +71,23 @@ namespace FileDedupe.Database
             ExecuteSql($"INSERT INTO FileDetails(Hash, Filename, Directory) VALUES ('{fileInfo.Hash}', '{filename}', '{directory}')");
         }
 
+        public bool IsFileHashSaved(FileInfo fileInfo)
+        {
+            var escapedFilename = Escape(fileInfo.FullName);
+            var sql = $"SELECT Hash FROM FileDetails WHERE Filename = '{escapedFilename}'";
+            using (var command = new SQLiteCommand(sql, _connection))
+            {
+                var reader = command.ExecuteReader();
+
+                return reader.Read();
+            }
+        }
+
         public IEnumerable<ExtendedFileInfo> ReadAllFileInfo()
         {
-            using (var connection = Connect())
+            var sql = "SELECT Hash, Filename FROM FileDetails ORDER BY Hash";
+            using (var command = new SQLiteCommand(sql, _connection))
             {
-                var sql = "SELECT Hash, Filename FROM FileDetails ORDER BY Hash";
-                var command = new SQLiteCommand(sql, connection);
                 var reader = command.ExecuteReader();
 
                 while (reader.Read())
@@ -70,16 +106,15 @@ namespace FileDedupe.Database
 
         private IEnumerable<DuplicateDirectoryInfo> GetDirectoriesWithDuplicateFiles()
         {
-            using (var connection = Connect())
-            {
-                var sql = @"SELECT DISTINCT fd1.Directory AS Directory1, fd2.Directory AS Directory2
-                            FROM FileDetails fd1
-                            INNER JOIN FileDetails fd2
-                                ON fd2.Hash = fd1.Hash
-                                AND fd2.Directory > fd1.Directory
-                            ORDER BY fd1.Directory";
+            var sql = @"SELECT DISTINCT fd1.Directory AS Directory1, fd2.Directory AS Directory2
+                        FROM FileDetails fd1
+                        INNER JOIN FileDetails fd2
+                            ON fd2.Hash = fd1.Hash
+                            AND fd2.Directory > fd1.Directory
+                        ORDER BY fd1.Directory";
 
-                var command = new SQLiteCommand(sql, connection);
+            using (var command = new SQLiteCommand(sql, _connection))
+            {
                 var reader = command.ExecuteReader();
 
                 while (reader.Read())
@@ -91,17 +126,14 @@ namespace FileDedupe.Database
 
         public void Enhance(IEnumerable<DuplicateDirectoryInfo> dirs)
         {
-            using (var connection = Connect())
+            foreach (var dir in dirs)
             {
-                foreach (var dir in dirs)
-                {
-                    GetFileInOneDirectoryButNotTheOther(connection, dir.Directory1, dir.Directory2, dir.FilesInDirectory1ButNot2);
-                    GetFileInOneDirectoryButNotTheOther(connection, dir.Directory2, dir.Directory1, dir.FilesInDirectory2ButNot1);
-                }
+                GetFileInOneDirectoryButNotTheOther(dir.Directory1, dir.Directory2, dir.FilesInDirectory1ButNot2);
+                GetFileInOneDirectoryButNotTheOther(dir.Directory2, dir.Directory1, dir.FilesInDirectory2ButNot1);
             }
         }
 
-        private static void GetFileInOneDirectoryButNotTheOther(SQLiteConnection connection, string Directory1, string Directory2, List<ExtendedFileInfo> list)
+        private void GetFileInOneDirectoryButNotTheOther(string Directory1, string Directory2, List<ExtendedFileInfo> list)
         {
             var sql = $@"SELECT fd1.Filename, fd2.Hash
                                 FROM FileDetails fd1
@@ -111,20 +143,28 @@ namespace FileDedupe.Database
                                 WHERE fd1.Directory = '{Directory1}'
                                 AND fd2.Hash IS NULL";
 
-            var command = new SQLiteCommand(sql, connection);
-            var reader = command.ExecuteReader();
-
-            while (reader.Read())
+            using (var command = new SQLiteCommand(sql, _connection))
             {
-                var filename = reader["Filename"].ToString();
-                var hash = reader["Hash"].ToString();
-                list.Add(new ExtendedFileInfo(new FileInfo(filename), hash));
+                var reader = command.ExecuteReader();
+
+                while (reader.Read())
+                {
+                    var filename = reader["Filename"].ToString();
+                    var hash = reader["Hash"].ToString();
+                    list.Add(new ExtendedFileInfo(new FileInfo(filename), hash));
+                }
             }
         }
 
         public void Dispose()
         {
-            File.Delete(_filename);
+            _connection?.Close();
+            _connection?.Dispose();
+
+            if (_usingTempFile)
+            {
+                File.Delete(_filename);
+            }
         }
     }
 }
